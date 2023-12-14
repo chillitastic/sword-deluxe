@@ -1,0 +1,98 @@
+extends CharacterBody3D
+
+@onready var Raycast = $BulletRay
+@onready var PlayerAnimations = $PlayerAnimations
+
+@onready var AmmoUi = $UI/AmmoUI
+@onready var MaxAmmoUi = $UI/MaxAmmoUI
+@onready var HealthUI = $UI/HealthUI
+
+@onready var BulletHole = preload("res://Effects/bullet_hole.tscn")
+
+const ACCELERATION = 1
+const MAXSPEED = 10
+const MAX_AMMO = 2
+const MAX_HEALTH = 100
+
+const PLAYER_ANIMATION_SPEEDSCALE_ADDITIVE = 0.5
+const PLAYER_ANIMATION_SPEEDSCALE_DIVIDEAMMOUNT = 10
+
+var Gravity = ProjectSettings.get_setting("physics/3d/default_gravity")
+
+var Health = 10
+var Cooldown = 0.25
+var ReloadTime = 1.2
+var CurrentAmmo = 2
+var M1Damage = 20
+
+var CanShoot = true
+var CanReload = true
+
+var IsReloading = false
+
+func  _ready(): #Runs at the start of the game once.
+	MaxAmmoUi.text = str(MAX_AMMO)
+	Health = MAX_HEALTH
+	PlayerAnimations.speed_scale = MAXSPEED / PLAYER_ANIMATION_SPEEDSCALE_DIVIDEAMMOUNT + PLAYER_ANIMATION_SPEEDSCALE_ADDITIVE
+func _physics_process(delta):
+	if not is_on_floor():
+		velocity.y -= Gravity * delta
+	if Input.is_action_just_pressed("action"):
+		if CanShoot and CurrentAmmo > 0:
+			Gun_shot()
+			CurrentAmmo -= 1
+			CanShoot = false
+			await get_tree().create_timer(Cooldown).timeout
+			CanShoot = true
+		elif CurrentAmmo == 0:
+			CanShoot = false
+	if Input.is_action_just_pressed("Reload") and CanReload and CurrentAmmo < 2:
+		CanShoot = false
+		IsReloading = true
+		AmmoUi.text = "Reloading"
+		await get_tree().create_timer(ReloadTime).timeout
+		CurrentAmmo = MAX_AMMO
+		IsReloading = false
+		CanShoot = true
+		CanReload = true
+	if not IsReloading:
+		AmmoUi.text = str(CurrentAmmo)	
+		
+	var input_dir = Input.get_vector("left", "right", "forward", "backward")
+	var direction = (transform.basis * Vector3(input_dir.x, 0, input_dir.y)).normalized()
+	
+	if direction:
+		velocity.x = direction.x * MAXSPEED
+		velocity.z = direction.z * MAXSPEED
+		PlayerAnimations.play("WalkAnimation")
+		#print("Is walking")
+	else:
+		velocity.x = move_toward(velocity.x, 0, MAXSPEED)
+		velocity.z = move_toward(velocity.z, 0, MAXSPEED)
+		#print("Is not walking")
+		PlayerAnimations.pause()
+		
+	move_and_slide()
+	HealthUI.text = "Health: " + str(Health)
+
+func Gun_shot():
+	print("Has Shot gun")
+	$GunPivot/GenyaGunv1/MuzzleFlash.ParticleRun()
+	$GunAnimations.play("Gun_shoot")
+	
+	if Raycast.get_collision_point():
+		var b = BulletHole.instantiate()
+		if Raycast.is_colliding():
+			get_tree().root.add_child(b)
+			b.global_transform.origin = Raycast.get_collision_point()
+			b.look_at(Raycast.get_collision_point() + Raycast.get_collision_normal(), Vector3.UP)
+			b.rotation_degrees.z = randi()
+		var collider = Raycast.get_collider()
+		if Raycast.is_colliding() and collider.has_method("kill"):
+			collider.kill(M1Damage)
+func Damage(dmg):
+	Health -= dmg
+	print("Has taken Damage")
+	if Health <= 0:
+		get_tree().quit()
+	
