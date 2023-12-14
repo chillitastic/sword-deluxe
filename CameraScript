@@ -1,0 +1,22 @@
+extends Camera3D
+@export var smooth_speed: float
+@export var offset: Vector3
+
+@export var sensitivity = 0.35
+@export var minangle = -15
+@export var maxangle = 15
+var look_rot = Vector3.ZERO
+
+func _input(event):
+	if event is InputEventMouseMotion:
+			look_rot.y -= (event.relative.x * sensitivity)
+			look_rot.x -= (event.relative.y * sensitivity)
+			#look_rot.y = clamp(look_rot.y, minangle,maxangle)
+			look_rot.x = clamp(look_rot.x, minangle,maxangle)
+func  _physics_process(delta):
+	if Input.is_action_pressed("Escape"):
+		get_tree().quit() 
+	else:
+		Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
+	
+	self.get_parent().rotation_degrees.y = look_rot.y
